@@ -2,7 +2,7 @@ import os
 import requests
 from fastapi import APIRouter, Depends, HTTPException, Request
 from database import get_db
-import sqlite3
+from typing import Any
 from datetime import datetime, timedelta
 
 router = APIRouter()
@@ -23,7 +23,7 @@ async def telegram_link():
     raise HTTPException(status_code=500, detail="Bot not found")
 
 @router.route("/citas", methods=["GET", "POST", "PUT", "DELETE"])
-async def citas_endpoint(request: Request, db: sqlite3.Connection = Depends(get_db)):
+async def citas_endpoint(request: Request, db: Any = Depends(get_db)):
     method = request.method
     id = request.query_params.get('id')
 
@@ -68,12 +68,21 @@ async def citas_endpoint(request: Request, db: sqlite3.Connection = Depends(get_
         cur = db.execute("SELECT id FROM citas WHERE fecha=? AND hora_inicio=? AND estado!='cancelada'", (data['fecha'], data['hora_inicio']))
         if cur.fetchone(): raise HTTPException(409, "Slot ocupado")
         
-        cur = db.execute('''INSERT INTO citas (mascota_id, cliente_id, fecha, hora_inicio, hora_fin, motivo, estado, veterinario, notas)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''', (
-            data.get('mascota_id'), data.get('cliente_id'), data.get('fecha'), data.get('hora_inicio'), hora_fin,
-            data.get('motivo'), data.get('estado', 'pendiente'), data.get('veterinario', 'Dr. General'), data.get('notas')
-        ))
-        new_id = cur.lastrowid
+        if hasattr(db, 'conn'): # PostgreSQL wrapper
+            cur = db.execute('''INSERT INTO citas (mascota_id, cliente_id, fecha, hora_inicio, hora_fin, motivo, estado, veterinario, notas)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id''', (
+                data.get('mascota_id'), data.get('cliente_id'), data.get('fecha'), data.get('hora_inicio'), hora_fin,
+                data.get('motivo'), data.get('estado', 'pendiente'), data.get('veterinario', 'Dr. General'), data.get('notas')
+            ))
+            new_id = cur.fetchone()['id']
+        else: # SQLite
+            cur = db.execute('''INSERT INTO citas (mascota_id, cliente_id, fecha, hora_inicio, hora_fin, motivo, estado, veterinario, notas)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''', (
+                data.get('mascota_id'), data.get('cliente_id'), data.get('fecha'), data.get('hora_inicio'), hora_fin,
+                data.get('motivo'), data.get('estado', 'pendiente'), data.get('veterinario', 'Dr. General'), data.get('notas')
+            ))
+            new_id = cur.lastrowid
+            
         db.execute("INSERT INTO notificaciones (titulo, mensaje, tipo, cita_id) VALUES (?,?,'info',?)", 
                    ("Cita agendada", f"Cita el {data['fecha']} a las {data['hora_inicio']}", new_id))
         db.commit()
@@ -106,7 +115,7 @@ async def citas_endpoint(request: Request, db: sqlite3.Connection = Depends(get_
         return {"message": "updated"}
 
 @router.route("/clientes", methods=["GET", "POST", "PUT", "DELETE"])
-async def clientes_endp(request: Request, db: sqlite3.Connection = Depends(get_db)):
+async def clientes_endp(request: Request, db: Any = Depends(get_db)):
     method = request.method
     id = request.query_params.get('id')
     if method == "GET":
@@ -124,7 +133,7 @@ async def clientes_endp(request: Request, db: sqlite3.Connection = Depends(get_d
         return {"message": "created"}
 
 @router.route("/mascotas", methods=["GET", "POST", "PUT", "DELETE"])
-async def mascotas_endp(request: Request, db: sqlite3.Connection = Depends(get_db)):
+async def mascotas_endp(request: Request, db: Any = Depends(get_db)):
     method = request.method
     id = request.query_params.get('id')
     if method == "GET":
@@ -139,7 +148,7 @@ async def mascotas_endp(request: Request, db: sqlite3.Connection = Depends(get_d
         return {"message": "created"}
 
 @router.route("/notificaciones", methods=["GET", "POST", "PUT", "DELETE"])
-async def notif_endp(request: Request, db: sqlite3.Connection = Depends(get_db)):
+async def notif_endp(request: Request, db: Any = Depends(get_db)):
     method = request.method
     id = request.query_params.get('id')
     if method == "GET":
@@ -157,7 +166,7 @@ async def notif_endp(request: Request, db: sqlite3.Connection = Depends(get_db))
         return {"message": "updated"}
 
 @router.get("/slots")
-async def slots_endp(fecha: str, db: sqlite3.Connection = Depends(get_db)):
+async def slots_endp(fecha: str, db: Any = Depends(get_db)):
     slots = []
     for h in range(8, 18):
         for m in (0, 30):

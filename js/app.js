@@ -5,11 +5,19 @@
 
 // ── API helper ─────────────────────────────────────────────────
 // ── API helper ─────────────────────────────────────────────────
+const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+  ? '' 
+  : 'https://veterinaria-api-krnq.onrender.com'; // <--- CAMBIAR POR TU URL DE RENDER
+
 async function api(endpoint, method = 'GET', body = null) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
   if (body) opts.body = JSON.stringify(body);
   const cleanEndpoint = endpoint.replace('.php', '');
-  const res = await fetch(`/api/${cleanEndpoint}`, opts);
+  
+  // Si API_BASE_URL está presente, lo usamos; si no, usamos la ruta relativa
+  const url = API_BASE_URL ? `${API_BASE_URL}/api/${cleanEndpoint}` : `/api/${cleanEndpoint}`;
+  
+  const res = await fetch(url, opts);
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
   return data;

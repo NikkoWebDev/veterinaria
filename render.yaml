@@ -8,9 +8,7 @@ services:
     envVars:
       - key: api_telegram
         sync: false # Set this in Render dashboard
+      - key: DATABASE_URL
+        sync: false # Set this in Render dashboard
       - key: PYTHON_VERSION
         value: 3.10.0
-    disk:
-      name: veterinaria-db
-      mountPath: /opt/render/project/src/db
-      sizeGB: 1
