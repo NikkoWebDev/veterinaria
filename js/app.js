@@ -1,13 +1,4 @@
-/**
- * PawCare — Shared App Utilities
- * app.js
- */
-
-// ── API helper ─────────────────────────────────────────────────
-// ── API helper ─────────────────────────────────────────────────
-const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-  ? '' 
-  : 'https://veterinaria-api-nt7o.onrender.com/'; // <--- CAMBIAR POR TU URL DE RENDER
+const API_BASE_URL = 'https://veterinaria-api-nt7o.onrender.com';
 
 async function api(endpoint, method = 'GET', body = null) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
@@ -15,7 +6,8 @@ async function api(endpoint, method = 'GET', body = null) {
   const cleanEndpoint = endpoint.replace('.php', '');
   
   // Si API_BASE_URL está presente, lo usamos; si no, usamos la ruta relativa
-  const url = API_BASE_URL ? `${API_BASE_URL}/api/${cleanEndpoint}` : `/api/${cleanEndpoint}`;
+  const url = `${API_BASE_URL}/api/${cleanEndpoint}`;
+  console.log("Llamando a:", url);
   
   const res = await fetch(url, opts);
   const data = await res.json();
