@@ -22,6 +22,59 @@ def answer_callback(cb_id):
     if not token: return
     requests.post(f"https://api.telegram.org/bot{token}/answerCallbackQuery", json={"callback_query_id": cb_id})
 
+def get_ai_response(text, history=None):
+    """Obtain a response from OpenRouter AI."""
+    api_key = os.environ.get('OPENROUTER_API_KEY', '')
+    if not api_key:
+        return "⚠️ Error: OPENROUTER_API_KEY no configurada en el servidor."
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://veterinaria.netlify.app",
+        "X-Title": "Veterinaria AI Assistant"
+    }
+
+    # Prepare messages starting with a system prompt
+    messages = [
+        {"role": "system", "content": (
+            "Eres un asistente virtual experto para la clínica veterinaria 'PawCare'. "
+            "Eres extremadamente amable, profesional y empático. Ayudas con dudas sobre mascotas, "
+            "explicas los servicios (citas, vacunas, estética) y orientas sobre la salud general. "
+            "MUY IMPORTANTE: No diagnostiques enfermedades críticas ni recetes medicamentos. "
+            "Ante emergencias o dolores fuertes, siempre indica que deben acudir a urgencias. "
+            "Usa emojis para un tono amigable."
+        )}
+    ]
+    
+    # Add historical context if provided (keep it limited to last few interactions)
+    if history:
+        messages.extend(history)
+
+    # Add the newest message
+    messages.append({"role": "user", "content": text})
+
+    payload = {
+        "model": "google/gemini-2.0-flash-001", # High quality and very fast
+        "messages": messages,
+        "temperature": 0.7,
+        "max_tokens": 500
+    }
+
+    try:
+        response = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=20
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data['choices'][0]['message']['content']
+    except Exception as e:
+        print(f"[OpenRouter Error] {e}")
+        return "He tenido un pequeño problema técnico al pensar mi respuesta. ¿En qué más puedo ayudarte? 🐾"
+
 class BotSession:
     def __init__(self, db: Any, chat_id: int):
         self.db = db
@@ -54,7 +107,10 @@ class BotSession:
         row = cur.fetchone()
         if row:
             raw = row['data'] if hasattr(row, '__getitem__') else row[0]
-            return json.loads(raw)
+            try:
+                return json.loads(raw)
+            except:
+                return {'estado': 'idle'}
         return {'estado': 'idle'}
 
     def save(self):
@@ -93,22 +149,33 @@ class BotHandler:
 
         if input_txt in ['/start', '/menu', '🔙 Cancelar', '/cancelar_flujo']:
             self.session.clear()
-            self._menu("Menu Principal")
+            self._menu(f"¡Hola {self.first_name}! 🐶" if self.first_name else "¡Hola! 🐶")
+        elif input_txt == '📅 Agendar Cita':
+            send_message(self.chat_id, "Puedes agendar tus citas desde nuestro panel web pulsando el enlace superior. Pronto podré agendarlas directamente por aquí. 🐾")
+        elif input_txt == '📋 Mis Citas':
+            send_message(self.chat_id, "Estamos sincronizando tus datos. Por favor revisa el panel de Clientes en la web por ahora. 💻")
+        elif input_txt == '❓ Ayuda':
+            send_message(self.chat_id, "Soy tu asistente de PawCare. Puedes preguntarme sobre cuidados para tu perro, servicios que ofrecemos o simplemente charlar. ¿En qué te ayudo?")
         else:
-            send_message(
-                self.chat_id,
-                "Funcionalidad nativa en Python en construcción. Usa tu panel web para agendar citas o vuelve al menú.",
-                reply_markup={"keyboard": [[{"text": "/menu"}]], "resize_keyboard": True}
-            )
+            # AI Inference
+            history = self.session.get('history', [])
+            ai_resp = get_ai_response(input_txt, history)
+            send_message(self.chat_id, ai_resp)
+            
+            # Simple context management (last 10 messages)
+            history.append({"role": "user", "content": input_txt})
+            history.append({"role": "assistant", "content": ai_resp})
+            self.session.set('history', history[-10:])
+            
         self.session.save()
 
     def _menu(self, prefix: str):
         send_message(
             self.chat_id,
-            f"{prefix}\n\nPawCare bot corriendo en Python/FastAPI 🎉",
+            f"{prefix}\n\nSoy el asistente virtual de PawCare. ¿En qué puedo ayudarte hoy?",
             reply_markup={"keyboard": [
                 [{"text": "📅 Agendar Cita"}, {"text": "📋 Mis Citas"}],
-                [{"text": "❌ Cancelar Cita"}, {"text": "❓ Ayuda"}]
+                [{"text": "❓ Ayuda"}]
             ], "resize_keyboard": True}
         )
 
