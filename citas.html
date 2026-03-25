@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="PawCare - Agendamiento de citas cada 30 minutos">
+  <title>PawCare — Citas</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🐾</div>
+      <div class="logo-text">
+        <span class="logo-name">PawCare</span>
+        <span class="logo-sub">VETERINARIA</span>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Principal</div>
+      <a class="nav-item" href="index.html"><span class="nav-icon">🏠</span> Dashboard</a>
+      <div class="nav-section-label">Gestión</div>
+      <a class="nav-item" href="clientes.html"><span class="nav-icon">👥</span> Clientes</a>
+      <a class="nav-item" href="mascotas.html"><span class="nav-icon">🐶</span> Mascotas</a>
+      <a class="nav-item active" href="citas.html"><span class="nav-icon">📅</span> Citas</a>
+      <div class="nav-section-label">Sistema</div>
+      <a class="nav-item" href="notificaciones.html">
+        <span class="nav-icon">🔔</span> Notificaciones
+        <span class="nav-badge" id="notif-badge" style="display:none">0</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer"><p class="version">PawCare v1.0 · 2025</p></div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-title">
+        <h1>Citas</h1>
+        <div class="breadcrumb">Agendamiento de citas cada 30 minutos</div>
+      </div>
+      <div class="topbar-actions">
+        <span class="topbar-date" id="topbar-date"></span>
+        <button class="notif-btn" id="notif-toggle-btn">🔔<span class="notif-dot" id="notif-dot"></span></button>
+      </div>
+    </header>
+
+    <div class="content">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+        <div>
+          <h2 style="font-size:20px;font-weight:700">Gestión de Citas</h2>
+          <p style="font-size:13px;color:var(--text-muted);margin-top:4px">Agenda citas en intervalos de 30 minutos — 08:00 a 18:00</p>
+        </div>
+        <button class="btn btn-primary" id="btn-nueva-cita">+ Nueva Cita</button>
+      </div>
+
+      <!-- Filters -->
+      <div class="card" style="margin-bottom:20px">
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+          <div class="form-group" style="margin:0;flex:1;min-width:160px">
+            <label class="form-label">Filtrar por Fecha</label>
+            <input type="date" class="form-control" id="filter-fecha">
+          </div>
+          <div class="form-group" style="margin:0;width:200px">
+            <label class="form-label">Filtrar por Estado</label>
+            <select class="form-control" id="filter-estado">
+              <option value="">Todos los estados</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="confirmada">Confirmada</option>
+              <option value="completada">Completada</option>
+              <option value="cancelada">Cancelada</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary" id="btn-filter">🔍 Filtrar</button>
+          <button class="btn btn-secondary" id="btn-reset-filter">↺ Limpiar</button>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="card">
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Horario</th>
+                <th>Mascota</th>
+                <th>Propietario</th>
+                <th>Motivo</th>
+                <th>Veterinario</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="citas-tbody">
+              <tr class="loading-row">
+                <td colspan="8">
+                  <div style="display:flex;align-items:center;justify-content:center;gap:10px">
+                    <div class="spinner"></div> Cargando citas...
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Modal: Nueva / Editar Cita -->
+<div class="modal-overlay" id="cita-modal">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <h3 id="modal-title">Nueva Cita</h3>
+      <button class="modal-close" onclick="closeModal('cita-modal')">✕</button>
+    </div>
+    <form id="cita-form">
+      <div class="modal-body">
+
+        <!-- Step 1: Patient -->
+        <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:20px">
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);margin-bottom:12px">
+            👤 Paciente
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">Cliente <span>*</span></label>
+              <select class="form-control" id="f-cliente">
+                <option value="">Selecciona un cliente...</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">Mascota <span>*</span></label>
+              <select class="form-control" id="f-mascota">
+                <option value="">Primero selecciona un cliente</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Schedule -->
+        <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:20px">
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);margin-bottom:12px">
+            📅 Fecha y Horario
+          </div>
+          <input type="hidden" id="f-fecha" value="">
+
+          <!-- Week navigator -->
+          <div class="week-nav">
+            <button type="button" class="btn btn-sm btn-secondary btn-icon" id="btn-prev-week">←</button>
+            <span class="week-label" id="week-label">Semana actual</span>
+            <button type="button" class="btn btn-sm btn-secondary" id="btn-hoy">Hoy</button>
+            <button type="button" class="btn btn-sm btn-secondary btn-icon" id="btn-next-week">→</button>
+          </div>
+          <div class="week-days" id="week-days"></div>
+
+          <!-- Slots -->
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span style="font-size:13px;font-weight:600">Elige un horario (30 min)</span>
+            <span style="font-size:12px;color:var(--text-muted)" id="slots-info">—</span>
+          </div>
+          <div style="margin-bottom:10px;padding:10px 14px;background:var(--accent-dim);border:1px solid rgba(0,212,170,.2);border-radius:var(--radius-sm)">
+            <span style="font-size:12px;color:var(--text-muted)">Seleccionado: </span>
+            <span id="f-slot-display" style="font-size:14px;font-weight:600;color:var(--text-muted)">Ninguno</span>
+          </div>
+          <div class="slots-grid" id="slots-grid">
+            <div style="grid-column:1/-1;color:var(--text-muted);font-size:13px">Selecciona una fecha para ver horarios</div>
+          </div>
+        </div>
+
+        <!-- Step 3: Details -->
+        <div style="background:var(--bg-base);border:1px solid var(--border);border-radius:var(--radius);padding:16px">
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);margin-bottom:12px">
+            📋 Detalles
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">Motivo de consulta</label>
+              <input type="text" class="form-control" id="f-motivo" placeholder="Ej. Vacunación, revisión...">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">Veterinario</label>
+              <input type="text" class="form-control" id="f-veterinario" placeholder="Dr. General" value="Dr. General">
+            </div>
+          </div>
+          <div class="form-group" style="margin-top:16px;margin-bottom:0">
+            <label class="form-label">Notas adicionales</label>
+            <textarea class="form-control" id="f-notas" rows="2" placeholder="Cualquier observación adicional..."></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('cita-modal')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">📅 Agendar Cita</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Notification Panel -->
+<aside class="notif-panel" id="notif-panel">
+  <div class="notif-panel-header">
+    <h3>🔔 Notificaciones</h3>
+    <div class="notif-panel-actions">
+      <button class="btn btn-sm btn-secondary" onclick="notifManager.markAllRead()">Marcar leídas</button>
+      <button class="btn btn-sm btn-secondary btn-icon" id="notif-close-btn">✕</button>
+    </div>
+  </div>
+  <div class="notif-list" id="notif-list"></div>
+  <div style="padding:16px;border-top:1px solid var(--border);text-align:center">
+    <a href="notificaciones.html" class="btn btn-secondary btn-sm">Ver todas</a>
+  </div>
+</aside>
+
+<div id="toast-container"></div>
+<script src="js/app.js"></script>
+<script src="js/notifications.js"></script>
+<script src="js/citas.js"></script>
+</body>
+</html>

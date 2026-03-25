@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="PawCare - Gestión de mascotas">
+  <title>PawCare — Mascotas</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="layout">
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🐾</div>
+      <div class="logo-text">
+        <span class="logo-name">PawCare</span>
+        <span class="logo-sub">VETERINARIA</span>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Principal</div>
+      <a class="nav-item" href="index.html"><span class="nav-icon">🏠</span> Dashboard</a>
+      <div class="nav-section-label">Gestión</div>
+      <a class="nav-item" href="clientes.html"><span class="nav-icon">👥</span> Clientes</a>
+      <a class="nav-item active" href="mascotas.html"><span class="nav-icon">🐶</span> Mascotas</a>
+      <a class="nav-item" href="citas.html"><span class="nav-icon">📅</span> Citas</a>
+      <div class="nav-section-label">Sistema</div>
+      <a class="nav-item" href="notificaciones.html">
+        <span class="nav-icon">🔔</span> Notificaciones
+        <span class="nav-badge" id="notif-badge" style="display:none">0</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer"><p class="version">PawCare v1.0 · 2025</p></div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-title">
+        <h1>Mascotas</h1>
+        <div class="breadcrumb">Registro y gestión de pacientes</div>
+      </div>
+      <div class="topbar-actions">
+        <span class="topbar-date" id="topbar-date"></span>
+        <button class="notif-btn" id="notif-toggle-btn">🔔<span class="notif-dot" id="notif-dot"></span></button>
+      </div>
+    </header>
+
+    <div class="content">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+        <div>
+          <h2 style="font-size:20px;font-weight:700">Lista de Mascotas</h2>
+          <p style="font-size:13px;color:var(--text-muted);margin-top:4px" id="mascota-count">Cargando...</p>
+        </div>
+        <button class="btn btn-primary" id="btn-nueva-mascota">+ Nueva Mascota</button>
+      </div>
+
+      <div class="search-bar">
+        <div class="form-group" style="margin:0;width:260px">
+          <select class="form-control" id="filter-cliente">
+            <option value="">Todos los clientes</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Mascota</th>
+                <th>Especie</th>
+                <th>Color</th>
+                <th>Edad / Fecha Nac.</th>
+                <th>Peso</th>
+                <th>Propietario</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="mascotas-tbody">
+              <tr class="loading-row">
+                <td colspan="7">
+                  <div style="display:flex;align-items:center;justify-content:center;gap:10px">
+                    <div class="spinner"></div> Cargando mascotas...
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Modal: Mascota -->
+<div class="modal-overlay" id="mascota-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">Nueva Mascota</h3>
+      <button class="modal-close" onclick="closeModal('mascota-modal')">✕</button>
+    </div>
+    <form id="mascota-form">
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Nombre <span>*</span></label>
+            <input type="text" class="form-control" id="f-nombre" placeholder="Nombre de la mascota" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Especie <span>*</span></label>
+            <select class="form-control" id="f-especie" required>
+              <option value="">Selecciona...</option>
+              <option value="Perro">🐶 Perro</option>
+              <option value="Gato">🐱 Gato</option>
+              <option value="Conejo">🐰 Conejo</option>
+              <option value="Ave">🐦 Ave</option>
+              <option value="Reptil">🦎 Reptil</option>
+              <option value="Pez">🐟 Pez</option>
+              <option value="Otro">🐾 Otro</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Raza</label>
+            <input type="text" class="form-control" id="f-raza" placeholder="Ej. Labrador">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Color</label>
+            <input type="text" class="form-control" id="f-color" placeholder="Ej. Dorado">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Fecha de Nacimiento</label>
+            <input type="date" class="form-control" id="f-nacimiento">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Peso (kg)</label>
+            <input type="number" class="form-control" id="f-peso" step="0.1" min="0" placeholder="Ej. 8.5">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Propietario <span>*</span></label>
+          <select class="form-control" id="f-cliente" required>
+            <option value="">Selecciona un cliente...</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('mascota-modal')">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar Mascota</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Notification Panel -->
+<aside class="notif-panel" id="notif-panel">
+  <div class="notif-panel-header">
+    <h3>🔔 Notificaciones</h3>
+    <div class="notif-panel-actions">
+      <button class="btn btn-sm btn-secondary" onclick="notifManager.markAllRead()">Marcar leídas</button>
+      <button class="btn btn-sm btn-secondary btn-icon" id="notif-close-btn">✕</button>
+    </div>
+  </div>
+  <div class="notif-list" id="notif-list"></div>
+  <div style="padding:16px;border-top:1px solid var(--border);text-align:center">
+    <a href="notificaciones.html" class="btn btn-secondary btn-sm">Ver todas</a>
+  </div>
+</aside>
+
+<div id="toast-container"></div>
+<script src="js/app.js"></script>
+<script src="js/notifications.js"></script>
+<script src="js/mascotas.js"></script>
+<script>
+  const _orig = renderTable;
+  window.renderTable = function(data) {
+    _orig(data);
+    const el = document.getElementById('mascota-count');
+    if (el) el.textContent = `${data.length} mascota${data.length !== 1 ? 's' : ''} registrada${data.length !== 1 ? 's' : ''}`;
+  };
+</script>
+</body>
+</html>
