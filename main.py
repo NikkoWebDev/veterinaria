@@ -20,7 +20,7 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/api")
-app.include_router(bot_router, prefix="/telegram")
+app.include_router(bot_router, prefix="/api/bot")
 
 app.mount("/", StaticFiles(directory=os.path.dirname(os.path.abspath(__file__)), html=True), name="static")
 
