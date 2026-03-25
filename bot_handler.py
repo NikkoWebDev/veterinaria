@@ -157,7 +157,7 @@ async def setup_webhook(request: Request):
 
     # Build webhook URL from current request host
     base_url = str(request.base_url).rstrip("/")
-    webhook_url = f"{base_url}/telegram/webhook"
+    webhook_url = f"{base_url}/api/bot/webhook"
 
     res = requests.post(
         f"https://api.telegram.org/bot{token}/setWebhook",
