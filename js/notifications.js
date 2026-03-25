@@ -16,7 +16,6 @@ class NotificationManager {
   }
 
   async init() {
-    await this.requestBrowserPermission();
     this.bindPanelToggle();
     await this.refresh();
     this.timerId = setInterval(() => this.refresh(), this.pollInterval);
@@ -148,7 +147,12 @@ class NotificationManager {
   bindPanelToggle() {
     const btn      = document.getElementById('notif-toggle-btn');
     const closeBtn = document.getElementById('notif-close-btn');
-    btn?.addEventListener('click', () => this.panelEl?.classList.toggle('open'));
+    btn?.addEventListener('click', () => {
+      this.panelEl?.classList.toggle('open');
+      if (this.panelEl?.classList.contains('open')) {
+        this.requestBrowserPermission();
+      }
+    });
     closeBtn?.addEventListener('click', () => this.panelEl?.classList.remove('open'));
   }
 

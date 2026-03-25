@@ -22,7 +22,7 @@ async def telegram_link():
         return {"url": f"https://t.me/{data['result']['username']}"}
     raise HTTPException(status_code=500, detail="Bot not found")
 
-@router.route("/citas", methods=["GET", "POST", "PUT", "DELETE"])
+@router.api_route("/citas", methods=["GET", "POST", "PUT", "DELETE"])
 async def citas_endpoint(request: Request, db: Any = Depends(get_db)):
     method = request.method
     id = request.query_params.get('id')
@@ -114,7 +114,7 @@ async def citas_endpoint(request: Request, db: Any = Depends(get_db)):
             db.commit()
         return {"message": "updated"}
 
-@router.route("/clientes", methods=["GET", "POST", "PUT", "DELETE"])
+@router.api_route("/clientes", methods=["GET", "POST", "PUT", "DELETE"])
 async def clientes_endp(request: Request, db: Any = Depends(get_db)):
     method = request.method
     id = request.query_params.get('id')
@@ -132,7 +132,7 @@ async def clientes_endp(request: Request, db: Any = Depends(get_db)):
         db.commit()
         return {"message": "created"}
 
-@router.route("/mascotas", methods=["GET", "POST", "PUT", "DELETE"])
+@router.api_route("/mascotas", methods=["GET", "POST", "PUT", "DELETE"])
 async def mascotas_endp(request: Request, db: Any = Depends(get_db)):
     method = request.method
     id = request.query_params.get('id')
@@ -147,7 +147,7 @@ async def mascotas_endp(request: Request, db: Any = Depends(get_db)):
         db.commit()
         return {"message": "created"}
 
-@router.route("/notificaciones", methods=["GET", "POST", "PUT", "DELETE"])
+@router.api_route("/notificaciones", methods=["GET", "POST", "PUT", "DELETE"])
 async def notif_endp(request: Request, db: Any = Depends(get_db)):
     method = request.method
     id = request.query_params.get('id')
