@@ -7,7 +7,7 @@
 // ── API helper ─────────────────────────────────────────────────
 const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
   ? '' 
-  : 'https://veterinaria-api-krnq.onrender.com'; // <--- CAMBIAR POR TU URL DE RENDER
+  : 'https://veterinaria-api-nt7o.onrender.com/'; // <--- CAMBIAR POR TU URL DE RENDER
 
 async function api(endpoint, method = 'GET', body = null) {
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
