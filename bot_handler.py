@@ -89,45 +89,65 @@ class BotSession:
         return hasattr(self.db, 'conn')
 
     def _ensure_table(self):
-        if self._is_pg():
-            self.db.execute("""
-                CREATE TABLE IF NOT EXISTS bot_sessions (
-                    chat_id BIGINT PRIMARY KEY,
-                    data TEXT NOT NULL
+        """Ensure necessary tables and columns exist."""
+        try:
+            if self._is_pg():
+                # Table for sessions
+                self.db.execute("""
+                    CREATE TABLE IF NOT EXISTS bot_sessions (
+                        chat_id BIGINT PRIMARY KEY,
+                        data TEXT NOT NULL
+                    )
+                """)
+                # Migration: Add column to clientes if missing
+                try:
+                    self.db.execute("ALTER TABLE clientes ADD COLUMN telegram_chat_id BIGINT")
+                    self.db.commit()
+                except:
+                    pass # Already exists
+            else:
+                self.db.execute(
+                    "CREATE TABLE IF NOT EXISTS bot_sessions (chat_id INTEGER PRIMARY KEY, data TEXT)"
                 )
-            """)
-        else:
-            self.db.execute(
-                "CREATE TABLE IF NOT EXISTS bot_sessions (chat_id INTEGER PRIMARY KEY, data TEXT)"
-            )
-        self.db.commit()
+                try:
+                    self.db.execute("ALTER TABLE clientes ADD COLUMN telegram_chat_id INTEGER")
+                    self.db.commit()
+                except:
+                    pass
+            self.db.commit()
+        except Exception as e:
+            print(f"[BotSession] _ensure_table error: {e}")
 
     def _load(self):
-        cur = self.db.execute(
-            "SELECT data FROM bot_sessions WHERE chat_id = ?", (self.chat_id,)
-        )
-        row = cur.fetchone()
-        if row:
-            raw = row['data'] if hasattr(row, '__getitem__') else row[0]
-            try:
+        try:
+            cur = self.db.execute(
+                "SELECT data FROM bot_sessions WHERE chat_id = ?", (self.chat_id,)
+            )
+            row = cur.fetchone()
+            if row:
+                raw = row['data'] if hasattr(row, '__getitem__') else row[0]
                 return json.loads(raw)
-            except: pass
+        except Exception as e:
+            print(f"[BotSession] _load error: {e}")
         return {'estado': 'idle'}
 
     def save(self):
-        data_str = json.dumps(self.data)
-        if self._is_pg():
-            self.db.execute(
-                """INSERT INTO bot_sessions (chat_id, data) VALUES (?, ?)
-                   ON CONFLICT (chat_id) DO UPDATE SET data = EXCLUDED.data""",
-                (self.chat_id, data_str)
-            )
-        else:
-            self.db.execute(
-                "INSERT OR REPLACE INTO bot_sessions (chat_id, data) VALUES (?, ?)",
-                (self.chat_id, data_str)
-            )
-        self.db.commit()
+        try:
+            data_str = json.dumps(self.data)
+            if self._is_pg():
+                self.db.execute(
+                    """INSERT INTO bot_sessions (chat_id, data) VALUES (?, ?)
+                       ON CONFLICT (chat_id) DO UPDATE SET data = EXCLUDED.data""",
+                    (self.chat_id, data_str)
+                )
+            else:
+                self.db.execute(
+                    "INSERT OR REPLACE INTO bot_sessions (chat_id, data) VALUES (?, ?)",
+                    (self.chat_id, data_str)
+                )
+            self.db.commit()
+        except Exception as e:
+            print(f"[BotSession] save error: {e}")
 
     def get_estado(self): return self.data.get('estado', 'idle')
     def set_estado(self, e): self.data['estado'] = e
@@ -147,8 +167,10 @@ class BotHandler:
         if cb_id:
             answer_callback(cb_id)
         
-        input_txt = cb_data or text.strip()
+        input_txt = (cb_data or text or "").strip()
         state = self.session.get_estado()
+        
+        print(f"[BotHandler] Chat:{self.chat_id} State:{state} Input:{input_txt}")
 
         # Comandos globales
         if input_txt in ['/start', '/menu', '🔙 Cancelar', 'cancelar_cita']:
@@ -158,19 +180,21 @@ class BotHandler:
             return
 
         if state == 'idle':
-            if input_txt == '📅 Agendar Cita':
+            if input_txt == '📅 Agendar Cita' or input_txt == 'agendar':
                 self._flow_start_booking()
             elif input_txt == '📋 Mis Citas':
                 self._show_citas()
             elif input_txt == '❓ Ayuda':
                 send_message(self.chat_id, "Soy tu asistente de PawCare. Puedes preguntarme sobre cuidados, servicios o agendar una cita directamente aquí.")
-            else:
+            elif input_txt:
                 history = self.session.get('history', [])
                 ai_resp = get_ai_response(input_txt, history)
                 send_message(self.chat_id, ai_resp)
                 history.append({"role": "user", "content": input_txt})
                 history.append({"role": "assistant", "content": ai_resp})
                 self.session.set('history', history[-10:])
+            else:
+                self._menu("Elige una opción:")
 
         elif state == 'await_phone':
             self._handle_phone(input_txt)
@@ -184,20 +208,30 @@ class BotHandler:
         self.session.save()
 
     def _flow_start_booking(self):
+        print(f"[BotHandler] _flow_start_booking for {self.chat_id}")
         # 1. Buscar si el cliente ya está vinculado
-        cur = self.db.execute("SELECT id FROM clientes WHERE telegram_chat_id = ?", (self.chat_id,))
-        client = cur.fetchone()
-        
-        if not client:
-            self.session.set_estado('await_phone')
-            send_message(self.chat_id, "Para agendar tu cita, primero necesito identificarte. \n\nPor favor, **escribe tu número de teléfono** registrado en la clínica:")
-        else:
-            self.session.set('cliente_id', client['id'] if isinstance(client, dict) else client[0])
-            self._show_pet_selection()
+        try:
+            cur = self.db.execute("SELECT id FROM clientes WHERE telegram_chat_id = ?", (self.chat_id,))
+            client = cur.fetchone()
+            
+            if not client:
+                self.session.set_estado('await_phone')
+                send_message(self.chat_id, "Para agendar tu cita, primero necesito identificarte. \n\nPor favor, **escribe tu número de teléfono** registrado en la clínica:")
+            else:
+                cid = client['id'] if isinstance(client, dict) else client[0]
+                self.session.set('cliente_id', cid)
+                self._show_pet_selection()
+        except Exception as e:
+            print(f"[BotHandler] _flow_start_booking DB Error: {e}")
+            send_message(self.chat_id, "Ocurrió un error al acceder a la base de datos. Por favor intenta más tarde.")
 
     def _handle_phone(self, phone):
         # Limpiar teléfono de espacios/guiones
         clean_phone = ''.join(filter(str.isdigit, phone))
+        if not clean_phone:
+            send_message(self.chat_id, "Por favor, escribe un número de teléfono válido.")
+            return
+
         cur = self.db.execute("SELECT id, nombre FROM clientes WHERE telefono LIKE ?", (f"%{clean_phone}",))
         client = cur.fetchone()
         
@@ -212,7 +246,7 @@ class BotHandler:
             send_message(self.chat_id, f"¡Gracias {cname}! He vinculado tu cuenta.")
             self._show_pet_selection()
         else:
-            send_message(self.chat_id, "No encontré ningún cliente con ese teléfono. Por favor, asegúrate de escribirlo correctamente o regístrate en nuestra web. \n\n¿Quieres intentarlo de nuevo? Escribe tu teléfono:")
+            send_message(self.chat_id, "No encontré ningún cliente con ese teléfono. Por favor, asegúrate de escribirlo correctamente o regístrate en nuestra web. \n\n¿Quieres intentarlo de nuevo? Escribe tu teléfono o pulsa /menu para salir.")
 
     def _show_pet_selection(self):
         cid = self.session.get('cliente_id')
@@ -236,11 +270,14 @@ class BotHandler:
         send_message(self.chat_id, "¿Para qué mascota es la cita?", reply_markup={"inline_keyboard": buttons})
 
     def _handle_pet_selection(self, data):
-        if not data.startswith('pet_'): return
+        if not data.startswith('pet_'): 
+            send_message(self.chat_id, "Por favor selecciona una mascota válida usando los botones.")
+            return
+        
         pid = int(data.split('_')[1])
         self.session.set('mascota_id', pid)
         
-        # Mostrar fechas (Hoy y próximos 2 días)
+        # Mostrar fechas (Hoy y próximos 3 días)
         buttons = []
         today = datetime.now()
         for i in range(4):
@@ -249,7 +286,7 @@ class BotHandler:
             label = "Hoy" if i == 0 else "Mañana" if i == 1 else date_obj.strftime('%d/%m')
             buttons.append([{"text": f"📅 {label} ({date_str})", "callback_data": f"date_{date_str}"}])
             
-        buttons.append([{"text": "🔙 Atrás", "callback_data": "📅 Agendar Cita"}])
+        buttons.append([{"text": "🔙 Atrás", "callback_data": "agendar"}])
         
         self.session.set_estado('select_date')
         send_message(self.chat_id, "Selecciona una fecha:", reply_markup={"inline_keyboard": buttons})
