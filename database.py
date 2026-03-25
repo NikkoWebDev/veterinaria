@@ -21,8 +21,16 @@ load_env()
 def get_db():
     db_url = os.environ.get("DATABASE_URL")
     if db_url:
-        # Usar PostgreSQL
-        conn = psycopg2.connect(db_url)
+        try:
+            # Usar PostgreSQL
+            conn = psycopg2.connect(db_url)
+        except psycopg2.OperationalError as e:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=500, 
+                detail="Error de conexión a la base de datos PostgreSQL. Valida que soporte IPv4 o usa el connection pooler. Detalle: " + str(e)
+            )
+        
         # Adaptador para que funcione similar a sqlite3 (dict access)
         class PGConnWrapper:
             def __init__(self, conn):
