@@ -156,6 +156,61 @@ class BotSession:
     def clear(self): self.data = {'estado': 'idle'}
 
 
+def get_ai_response(text, history=None):
+    """Obtain a response from OpenRouter AI with multiple fallbacks."""
+    api_key = os.environ.get('OPENROUTER_API_KEY', '')
+    if not api_key:
+        return "⚠️ Error: OPENROUTER_API_KEY no configurada."
+
+    # List of models to try in order (mostly free models as requested)
+    # Note: Using likely OpenRouter IDs based on user list
+    models = [
+        "google/gemini-2.0-flash-001",           # Primary (very fast)
+        "meta-llama/llama-3.3-70b-instruct:free", # Powerhouse
+        "google/gemma-3-27b:free",               # Latest Gemma
+        "mistralai/mistral-small-24b-instruct-2501:free",
+        "google/gemma-3-12b:free",
+        "meta-llama/llama-3.2-3b-instruct:free",
+        "nousresearch/hermes-3-llama-3.1-405b:free",
+        "qwen/qwen-2.5-7b-instruct:free"         # Fallback for Qwen
+    ]
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://veterinaria.netlify.app",
+        "X-Title": "Veterinaria Assistant"
+    }
+
+    messages = [
+        {"role": "system", "content": (
+            "Eres el asistente virtual de la clínica veterinaria 'PawCare'. "
+            "Eres amable, profesional y usas muchos emojis 🐾. Ayudas con dudas sobre mascotas. "
+            "Si el usuario quiere agendar, indícale que use el botón del menú. "
+            "No des consejos médicos definitivos, siempre recomienda visitar al doctor en emergencias."
+        )}
+    ]
+    if history: messages.extend(history)
+    messages.append({"role": "user", "content": text})
+
+    for model in models:
+        try:
+            print(f"[AI] Intentando con modelo: {model}")
+            payload = { "model": model, "messages": messages, "temperature": 0.7, "max_tokens": 400 }
+            response = requests.post("https://openrouter.ai/api/v1/chat/completions", 
+                                   headers=headers, json=payload, timeout=12)
+            if response.status_code == 200:
+                data = response.json()
+                return data['choices'][0]['message']['content']
+            else:
+                print(f"[AI] Error {response.status_code} en {model}: {response.text[:100]}")
+        except Exception as e:
+            print(f"[AI] Excepción con {model}: {e}")
+            continue
+    
+    return "Lo siento, mis sistemas de IA están ocupados ahora. ¿En qué más puedo ayudarte de forma manual? 🐾"
+
+
 class BotHandler:
     def __init__(self, db: Any, chat_id: int, first_name: str = ""):
         self.db = db
@@ -173,7 +228,7 @@ class BotHandler:
         print(f"[BotHandler] Chat:{self.chat_id} State:{state} Input:{input_txt}")
 
         # Comandos globales
-        if input_txt in ['/start', '/menu', '🔙 Cancelar', 'cancelar_cita']:
+        if input_txt in ['/start', '/menu', '🔙 Cancelar', 'cancelar_cita', 'cancel_reg']:
             self.session.clear()
             self._menu(f"¡Hola {self.first_name}! 🐶" if self.first_name else "¡Hola! 🐶")
             self.session.save()
@@ -194,10 +249,14 @@ class BotHandler:
                 history.append({"role": "assistant", "content": ai_resp})
                 self.session.set('history', history[-10:])
             else:
-                self._menu("Elige una opción:")
+                self._menu("¿Qué deseas hacer?")
 
         elif state == 'await_phone':
             self._handle_phone(input_txt)
+        elif state == 'await_new_name':
+            self._handle_new_client_name(input_txt)
+        elif state == 'await_new_pet':
+            self._handle_new_pet_name(input_txt)
         elif state == 'select_pet':
             self._handle_pet_selection(input_txt)
         elif state == 'select_date':
@@ -216,37 +275,93 @@ class BotHandler:
             
             if not client:
                 self.session.set_estado('await_phone')
-                send_message(self.chat_id, "Para agendar tu cita, primero necesito identificarte. \n\nPor favor, **escribe tu número de teléfono** registrado en la clínica:")
+                send_message(self.chat_id, "Para agendar tu cita, primero necesito identificarte. 🆔\n\nPor favor, **escribe tu número de teléfono** con el que estás registrado (o el que quieras usar para registrarte):")
             else:
                 cid = client['id'] if isinstance(client, dict) else client[0]
                 self.session.set('cliente_id', cid)
                 self._show_pet_selection()
         except Exception as e:
-            print(f"[BotHandler] _flow_start_booking DB Error: {e}")
-            send_message(self.chat_id, "Ocurrió un error al acceder a la base de datos. Por favor intenta más tarde.")
+            print(f"[BotHandler] DB Error: {e}")
+            send_message(self.chat_id, "Ocurrió un error. Intenta de nuevo pulsando /menu")
 
     def _handle_phone(self, phone):
         # Limpiar teléfono de espacios/guiones
         clean_phone = ''.join(filter(str.isdigit, phone))
-        if not clean_phone:
-            send_message(self.chat_id, "Por favor, escribe un número de teléfono válido.")
+        if not clean_phone or len(clean_phone) < 7:
+            send_message(self.chat_id, "Por favor escribe un teléfono válido.")
             return
 
+        self.session.set('reg_phone', clean_phone)
         cur = self.db.execute("SELECT id, nombre FROM clientes WHERE telefono LIKE ?", (f"%{clean_phone}",))
         client = cur.fetchone()
         
         if client:
             cid = client['id'] if isinstance(client, dict) else client[0]
-            cname = client['nombre'] if isinstance(client, dict) else client[1]
             # Vincular
             self.db.execute("UPDATE clientes SET telegram_chat_id = ? WHERE id = ?", (self.chat_id, cid))
             self.db.commit()
             
             self.session.set('cliente_id', cid)
-            send_message(self.chat_id, f"¡Gracias {cname}! He vinculado tu cuenta.")
+            send_message(self.chat_id, "¡Cuenta vinculada! ✅")
             self._show_pet_selection()
         else:
-            send_message(self.chat_id, "No encontré ningún cliente con ese teléfono. Por favor, asegúrate de escribirlo correctamente o regístrate en nuestra web. \n\n¿Quieres intentarlo de nuevo? Escribe tu teléfono o pulsa /menu para salir.")
+            self.session.set_estado('await_new_name')
+            send_message(self.chat_id, "No te encontramos en nuestra base de datos. 🐾\n\n¿Deseas registrarte ahora? Es gratis y rápido. **Escribe tu nombre completo** para continuar:")
+
+    def _handle_new_client_name(self, name):
+        if len(name) < 3:
+            send_message(self.chat_id, "Por favor escribe un nombre válido.")
+            return
+        
+        # Guardar nombre temporalmente
+        parts = name.split(' ', 1)
+        nombre = parts[0]
+        apellido = parts[1] if len(parts) > 1 else " "
+        
+        self.session.set('reg_nombre', nombre)
+        self.session.set('reg_apellido', apellido)
+        self.session.set_estado('await_new_pet')
+        send_message(self.chat_id, f"¡Mucho gusto, {nombre}! 👋\n\nAhora para terminar, **escribe el nombre de tu mascota**:")
+
+    def _handle_new_pet_name(self, pet_name):
+        if len(pet_name) < 2:
+            send_message(self.chat_id, "Nombre de mascota muy corto.")
+            return
+
+        try:
+            # 1. Crear cliente
+            phone = self.session.get('reg_phone')
+            nombre = self.session.get('reg_nombre')
+            apellido = self.session.get('reg_apellido')
+            
+            cur = self.db.execute(
+                "INSERT INTO clientes (nombre, apellido, telefono, telegram_chat_id) VALUES (?,?,?,?)",
+                (nombre, apellido, phone, self.chat_id)
+            )
+            self.db.commit()
+            
+            # Obtener ID del cliente recién creado
+            if hasattr(self.db, 'conn'): # PG
+                cur = self.db.execute("SELECT id FROM clientes WHERE telegram_chat_id = ? ORDER BY id DESC LIMIT 1", (self.chat_id,))
+                cid = cur.fetchone()['id']
+            else: # SQLite
+                cid = cur.lastrowid
+            
+            # 2. Crear mascota (especie 'Perro' por defecto)
+            self.db.execute(
+                "INSERT INTO mascotas (nombre, especie, cliente_id) VALUES (?,?,?)",
+                (pet_name, "Perro", cid)
+            )
+            self.db.commit()
+            
+            self.session.set('cliente_id', cid)
+            send_message(self.chat_id, "¡Registro completado con éxito! 🎉 Ahora puedes agendar tu cita.")
+            self._show_pet_selection()
+            
+        except Exception as e:
+            print(f"[Registration] Error: {e}")
+            send_message(self.chat_id, "Hubo un error al registrarte. Reintenta desde el /menu")
+            self.session.clear()
 
     def _show_pet_selection(self):
         cid = self.session.get('cliente_id')
